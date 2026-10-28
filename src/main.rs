@@ -1,4 +1,5 @@
 mod canvas;
+mod input;
 mod map;
 mod mvt;
 mod search;
@@ -20,9 +21,11 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Para
 use ratatui::{DefaultTerminal, Frame};
 
 use crate::canvas::Canvas;
+use crate::input::LineInput;
 use crate::map::{Category, MAX_VIEW_ZOOM, MIN_ZOOM, Marker, Poi, View, to_world};
 use crate::search::Place;
 use crate::tiles::TileManager;
+use unicode_width::UnicodeWidthStr;
 
 const ATTRIBUTION: &str = "© OpenStreetMap contributors · OpenFreeMap ";
 const PANEL_WIDTH: u16 = 44;
@@ -52,7 +55,7 @@ enum Focus {
 
 #[derive(Default)]
 struct SearchState {
-    input: String,
+    input: LineInput,
     searched: String,
     results: Vec<Place>,
     selected: usize,
@@ -131,12 +134,12 @@ impl App {
     }
 
     fn start_search(&mut self) {
-        let query = self.search.input.trim().to_owned();
+        let query = self.search.input.text.trim().to_owned();
         if query.is_empty() {
             return;
         }
         let (tx, rx) = channel();
-        self.search.searched = self.search.input.clone();
+        self.search.searched = self.search.input.text.clone();
         self.search.status = format!("Searching for “{query}”…");
         self.search.results.clear();
         self.search.selected = 0;
@@ -227,7 +230,7 @@ impl App {
         match key.code {
             KeyCode::Esc => self.focus = Focus::Map,
             KeyCode::Enter => {
-                if n > 0 && self.search.input == self.search.searched {
+                if n > 0 && self.search.input.text == self.search.searched {
                     self.jump_to_result();
                 } else {
                     self.start_search();
@@ -239,14 +242,9 @@ impl App {
             KeyCode::Up | KeyCode::BackTab if n > 0 => {
                 self.search.selected = (self.search.selected + n - 1) % n;
             }
-            KeyCode::Backspace => {
-                self.search.input.pop();
+            _ => {
+                self.search.input.handle(key);
             }
-            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.search.input.clear();
-            }
-            KeyCode::Char(c) => self.search.input.push(c),
-            _ => {}
         }
     }
 
@@ -357,7 +355,7 @@ fn main() -> Result<()> {
     if !args.is_empty() && nums.len() == args.len() && (2..=3).contains(&nums.len()) {
         app.view = View::new(nums[0], nums[1], nums.get(2).copied().unwrap_or(16.0));
     } else if !args.is_empty() {
-        app.search.input = args.join(" ");
+        app.search.input.set(args.join(" "));
         app.search.auto_jump = true;
         app.start_search();
     }
@@ -541,10 +539,11 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let input = Line::from(vec![Span::raw("› ").cyan(), Span::raw(s.input.as_str())]);
+    let input = Line::from(vec![Span::raw("› ").cyan(), Span::raw(s.input.text.as_str())]);
     f.render_widget(Paragraph::new(input), Rect { height: 1, ..inner });
+    let cursor_col = s.input.before_cursor().width() as u16;
     f.set_cursor_position(Position::new(
-        (inner.x + 2 + s.input.chars().count() as u16).min(inner.right().saturating_sub(1)),
+        (inner.x + 2 + cursor_col).min(inner.right().saturating_sub(1)),
         inner.y,
     ));
 
