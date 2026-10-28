@@ -1,5 +1,10 @@
 # 🗺️ osomty
 
+> [!NOTE]
+> 🤖 *bip boop ai*
+>
+> This project is vibe coded: it was written almost entirely by an AI coding assistant (Claude Code), with only light human review. Expect rough edges.
+
 Browse the OpenStreetMap world map in your terminal, from continents down to the names of shops, cafés and restaurants on a street.
 
 Inspired by [mapscii](https://github.com/rastapasta/mapscii) (`telnet mapscii.me`), built in Rust with [ratatui](https://ratatui.rs). The map is drawn with braille characters, and labels are placed so they don't overlap.
