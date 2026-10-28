@@ -129,16 +129,15 @@ impl Category {
             | "gift" | "mobile_phone" | "optician" | "shoe" | "shoes" | "sports" | "stationery"
             | "toy" | "toys" | "books" | "hairdresser" | "beauty" | "laundry" | "electronics"
             | "deli" | "greengrocer" | "cosmetics" | "department_store" | "mall"
-            | "marketplace" | "music" | "art" | "chemist" | "kiosk" | "tobacco"
-            | "newsagent" | "bicycle" | "car" | "car_repair" | "pet" | "computer"
-            | "variety_store" | "boutique" | "perfumery" | "tea" | "coffee" | "cheese" => {
-                Some(Category::Shop)
-            }
+            | "marketplace" | "music" | "art" | "chemist" | "kiosk" | "tobacco" | "newsagent"
+            | "bicycle" | "car" | "car_repair" | "pet" | "computer" | "variety_store"
+            | "boutique" | "perfumery" | "tea" | "coffee" | "cheese" => Some(Category::Shop),
             "hospital" | "pharmacy" | "dentist" | "doctors" | "doctor" | "clinic"
             | "veterinary" => Some(Category::Health),
             "bank" | "atm" | "bureau_de_change" | "money_transfer" => Some(Category::Money),
-            "lodging" | "hotel" | "hostel" | "motel" | "guest_house" | "campsite"
-            | "apartment" => Some(Category::Lodging),
+            "lodging" | "hotel" | "hostel" | "motel" | "guest_house" | "campsite" | "apartment" => {
+                Some(Category::Lodging)
+            }
             "bus" | "railway" | "subway" | "tram" | "tram_stop" | "ferry_terminal"
             | "aerialway" | "parking" | "fuel" | "bicycle_rental" | "car_rental"
             | "charging_station" | "taxi" | "station" | "bus_station" | "bicycle_parking" => {
@@ -154,7 +153,9 @@ impl Category {
             _ => None,
         };
         // Subclass (raw OSM tag value) is more precise, e.g. class=shop subclass=bakery.
-        pick(subclass).or_else(|| pick(class)).unwrap_or(Category::Other)
+        pick(subclass)
+            .or_else(|| pick(class))
+            .unwrap_or(Category::Other)
     }
 
     pub fn symbol(self) -> char {
@@ -477,7 +478,13 @@ fn collect_labels(
             }
             let prio = POI_PRIO + f.props.rank.unwrap_or(99).min(999);
             let style = Style::new().fg(category.color());
-            push(f, ext, prio, LabelKind::Marker(category.symbol(), name.clone()), style);
+            push(
+                f,
+                ext,
+                prio,
+                LabelKind::Marker(category.symbol(), name.clone()),
+                style,
+            );
         }
     }
 

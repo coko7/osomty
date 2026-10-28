@@ -160,7 +160,7 @@ impl Canvas {
                 }
             }
             xs.sort_unstable_by(f64::total_cmp);
-            for pair in xs.chunks_exact(2) {
+            for pair in xs.as_chunks::<2>().0 {
                 let from = ((pair[0] - 0.5).ceil() as i64).max(col_lo);
                 let to = ((pair[1] - 0.5).ceil() as i64).min(col_hi);
                 for x in from..to {
@@ -185,7 +185,10 @@ impl Canvas {
         let row_base = row as usize * self.cols as usize;
         let lo = (col - 1).max(0) as usize;
         let hi = ((col + width + 1) as usize).min(self.cols as usize);
-        if self.occupied[row_base + lo..row_base + hi].iter().any(|&o| o) {
+        if self.occupied[row_base + lo..row_base + hi]
+            .iter()
+            .any(|&o| o)
+        {
             return false;
         }
         self.occupied[row_base + lo..row_base + hi].fill(true);

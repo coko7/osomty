@@ -348,10 +348,15 @@ fn main() -> Result<()> {
     let mut app = App::new();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "-h" || a == "--help") {
-        println!("Usage: osomty [LAT LON [ZOOM] | PLACE NAME]\n\nBrowse OpenStreetMap in the terminal. Press ? in the app for keys.");
+        println!(
+            "Usage: osomty [LAT LON [ZOOM] | PLACE NAME]\n\nBrowse OpenStreetMap in the terminal. Press ? in the app for keys."
+        );
         return Ok(());
     }
-    let nums: Vec<f64> = args.iter().filter_map(|a| a.trim_end_matches(',').parse().ok()).collect();
+    let nums: Vec<f64> = args
+        .iter()
+        .filter_map(|a| a.trim_end_matches(',').parse().ok())
+        .collect();
     if !args.is_empty() && nums.len() == args.len() && (2..=3).contains(&nums.len()) {
         app.view = View::new(nums[0], nums[1], nums.get(2).copied().unwrap_or(16.0));
     } else if !args.is_empty() {
@@ -405,10 +410,11 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let [main, status] = Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(f.area());
+    let [main, status] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(1)]).areas(f.area());
     let (map_area, panel_area) = if app.show_panel && main.width > PANEL_WIDTH + 20 {
-        let [m, p] = Layout::horizontal([Constraint::Min(20), Constraint::Length(PANEL_WIDTH)])
-            .areas(main);
+        let [m, p] =
+            Layout::horizontal([Constraint::Min(20), Constraint::Length(PANEL_WIDTH)]).areas(main);
         (m, Some(p))
     } else {
         (main, None)
@@ -453,7 +459,11 @@ fn render_panel(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered()
         .border_type(BorderType::Rounded)
         .title(title)
-        .border_style(if focused { Style::new().cyan() } else { Style::new().dark_gray() });
+        .border_style(if focused {
+            Style::new().cyan()
+        } else {
+            Style::new().dark_gray()
+        });
 
     let items: Vec<ListItem> = if app.pois.is_empty() {
         let hint = if app.view.zoom < 14.0 {
@@ -467,7 +477,10 @@ fn render_panel(f: &mut Frame, app: &mut App, area: Rect) {
             .iter()
             .map(|p| {
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("{} ", p.category.symbol()), Style::new().fg(p.category.color())),
+                    Span::styled(
+                        format!("{} ", p.category.symbol()),
+                        Style::new().fg(p.category.color()),
+                    ),
                     Span::raw(p.name.clone()),
                     Span::styled(format!("  {}", p.kind), Style::new().dark_gray()),
                 ]))
@@ -477,7 +490,8 @@ fn render_panel(f: &mut Frame, app: &mut App, area: Rect) {
     if let Some(sel) = app.panel.selected()
         && sel >= app.pois.len()
     {
-        app.panel.select((!app.pois.is_empty()).then(|| app.pois.len() - 1));
+        app.panel
+            .select((!app.pois.is_empty()).then(|| app.pois.len() - 1));
     }
     let list = List::new(items)
         .block(block)
@@ -498,12 +512,18 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     ];
     let loading = app.tiles.loading();
     if loading > 0 {
-        spans.push(Span::styled(format!(" ⟳ {loading} tiles "), Style::new().yellow()));
+        spans.push(Span::styled(
+            format!(" ⟳ {loading} tiles "),
+            Style::new().yellow(),
+        ));
     } else if let Some(err) = &app.tiles.last_error {
         spans.push(Span::styled(format!(" ⚠ {err} "), Style::new().red()));
     }
     if let Some(c) = app.filter {
-        spans.push(Span::styled(format!(" filter: {} ", c.name()), Style::new().fg(c.color())));
+        spans.push(Span::styled(
+            format!(" filter: {} ", c.name()),
+            Style::new().fg(c.color()),
+        ));
     }
     spans.push(Span::styled(
         " ?:help /:search p:places f:filter q:quit",
@@ -516,7 +536,10 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     .areas(area);
     f.render_widget(Paragraph::new(Line::from(spans)).on_black(), left);
     f.render_widget(
-        Paragraph::new(ATTRIBUTION).dark_gray().on_black().alignment(Alignment::Right),
+        Paragraph::new(ATTRIBUTION)
+            .dark_gray()
+            .on_black()
+            .alignment(Alignment::Right),
         right,
     );
 }
@@ -524,7 +547,11 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
 fn render_search(f: &mut Frame, app: &App, area: Rect) {
     let s = &app.search;
     let width = area.width.saturating_sub(4).min(80);
-    let rows = if s.results.is_empty() { 1 } else { s.results.len() as u16 };
+    let rows = if s.results.is_empty() {
+        1
+    } else {
+        s.results.len() as u16
+    };
     let height = (rows + 4).min(area.height);
     let popup = Rect::new(area.x + (area.width - width) / 2, area.y + 1, width, height);
     f.render_widget(Clear, popup);
@@ -539,7 +566,10 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let input = Line::from(vec![Span::raw("› ").cyan(), Span::raw(s.input.text.as_str())]);
+    let input = Line::from(vec![
+        Span::raw("› ").cyan(),
+        Span::raw(s.input.text.as_str()),
+    ]);
     f.render_widget(Paragraph::new(input), Rect { height: 1, ..inner });
     let cursor_col = s.input.before_cursor().width() as u16;
     f.set_cursor_position(Position::new(
@@ -553,7 +583,12 @@ fn render_search(f: &mut Frame, app: &App, area: Rect) {
         ..inner
     };
     if s.results.is_empty() {
-        f.render_widget(Paragraph::new(s.status.as_str()).dark_gray().wrap(Wrap { trim: true }), body);
+        f.render_widget(
+            Paragraph::new(s.status.as_str())
+                .dark_gray()
+                .wrap(Wrap { trim: true }),
+            body,
+        );
         return;
     }
     let items: Vec<ListItem> = s
@@ -633,7 +668,11 @@ mod tests {
     #[ignore]
     fn render_snapshots() {
         let mut app = App::new();
-        for (lat, lon, zoom) in [(30.0, 10.0, 1.3), (48.8566, 2.3522, 11.0), (48.8530, 2.3499, 17.0)] {
+        for (lat, lon, zoom) in [
+            (30.0, 10.0, 1.3),
+            (48.8566, 2.3522, 11.0),
+            (48.8530, 2.3499, 17.0),
+        ] {
             app.view = View::new(lat, lon, zoom);
             let mut term = Terminal::new(TestBackend::new(120, 40)).unwrap();
             let start = std::time::Instant::now();
@@ -643,13 +682,20 @@ mod tests {
                 if app.tiles.loading() == 0 && start.elapsed() > Duration::from_millis(300) {
                     break;
                 }
-                assert!(start.elapsed() < Duration::from_secs(60), "tiles did not load");
+                assert!(
+                    start.elapsed() < Duration::from_secs(60),
+                    "tiles did not load"
+                );
                 std::thread::sleep(Duration::from_millis(100));
             }
             let t = std::time::Instant::now();
             term.draw(|f| ui(f, &mut app)).unwrap();
             let buf = term.backend().buffer();
-            let filled = buf.content.iter().filter(|c| c.bg != ratatui::style::Color::Reset).count();
+            let filled = buf
+                .content
+                .iter()
+                .filter(|c| c.bg != ratatui::style::Color::Reset)
+                .count();
             println!(
                 "--- z{zoom} rendered in {:?}, {} pois, {filled} filled cells",
                 t.elapsed(),

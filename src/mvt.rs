@@ -170,7 +170,7 @@ fn decode_feature(buf: &[u8], keys: &[&str], values: &[Value]) -> Result<Feature
 
     let mut props = Props::default();
     let mut fallback_name = None;
-    for pair in tags.chunks_exact(2) {
+    for pair in tags.as_chunks::<2>().0 {
         let (Some(key), Some(val)) = (keys.get(pair[0] as usize), values.get(pair[1] as usize))
         else {
             continue;

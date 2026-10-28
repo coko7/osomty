@@ -15,7 +15,11 @@ pub const MAX_ZOOM: u8 = 14;
 const TILEJSON_URL: &str = "https://tiles.openfreemap.org/planet";
 const MEMORY_TILES: usize = 160;
 const RETRY_AFTER: Duration = Duration::from_secs(15);
-pub const USER_AGENT: &str = concat!("osomty/", env!("CARGO_PKG_VERSION"), " (terminal map viewer)");
+pub const USER_AGENT: &str = concat!(
+    "osomty/",
+    env!("CARGO_PKG_VERSION"),
+    " (terminal map viewer)"
+);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TileId {
@@ -103,7 +107,8 @@ impl TileManager {
             match res {
                 Ok(tile) => {
                     self.last_error = None;
-                    self.slots.insert(id, Slot::Ready(Arc::new(tile), self.tick));
+                    self.slots
+                        .insert(id, Slot::Ready(Arc::new(tile), self.tick));
                 }
                 Err(e) => {
                     self.last_error = Some(e);
