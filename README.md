@@ -1,5 +1,8 @@
 # 🗺️ osomty
 
+[![CI](https://github.com/coko7/osomty/actions/workflows/ci.yml/badge.svg)](https://github.com/coko7/osomty/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/coko7/osomty)](https://github.com/coko7/osomty/releases/latest)
+
 > [!NOTE]
 > 🤖 *bip boop ai*
 >
@@ -38,7 +41,9 @@ Inspired by [mapscii](https://github.com/rastapasta/mapscii) (`telnet mapscii.me
 
 ## Installation
 
-Requires a [Rust toolchain](https://rustup.rs) (edition 2024, Rust 1.88 or newer).
+Prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon) and Windows (x86_64) are attached to each [GitHub release](https://github.com/coko7/osomty/releases/latest). Download the archive for your platform, extract it, and put `osomty` on your `PATH`.
+
+To build from source instead, you need a [Rust toolchain](https://rustup.rs) (edition 2024, Rust 1.88 or newer):
 
 ```sh
 cargo install --git https://github.com/coko7/osomty
