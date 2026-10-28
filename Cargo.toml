@@ -2,6 +2,13 @@
 name = "osomty"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Browse the OpenStreetMap world map in your terminal"
+license = "MIT"
+repository = "https://github.com/coko7/osomty"
+readme = "README.md"
+keywords = ["map", "openstreetmap", "tui", "ratatui", "terminal"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0.104"
