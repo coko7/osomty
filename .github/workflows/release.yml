@@ -18,7 +18,7 @@ jobs:
     name: Create draft release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check tag matches Cargo.toml version
         run: |
           version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
@@ -42,7 +42,7 @@ jobs:
           - { target: x86_64-pc-windows-msvc, os: windows-latest }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
