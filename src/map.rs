@@ -86,6 +86,101 @@ pub fn to_lat_lon(x: f64, y: f64) -> (f64, f64) {
     (lat, lon)
 }
 
+/// Trade-off between zooming and panning in a flight; √2 is the value van Wijk & Nuij
+/// found most natural (also the d3 and Mapbox default).
+const RHO: f64 = std::f64::consts::SQRT_2;
+/// Seconds of animation per unit of path length, and the allowed duration range.
+const FLIGHT_PACE: f64 = 0.25;
+const FLIGHT_MIN_SECS: f64 = 0.6;
+const FLIGHT_MAX_SECS: f64 = 3.0;
+
+/// Animated "fly to" between two views: zoom out while travelling, zoom back in to arrive.
+/// J. J. van Wijk & W. A. A. Nuij, "Smooth and efficient zooming and panning", 2003.
+pub struct Flight {
+    from: View,
+    to: View,
+    /// Pan offset, taking the short way around the antimeridian.
+    dx: f64,
+    dy: f64,
+    /// Pan distance and the start/end viewport widths, in world units.
+    dist: f64,
+    w0: f64,
+    r0: f64,
+    /// Total path length.
+    length: f64,
+    viewport_px: f64,
+    elapsed: f64,
+    duration: f64,
+}
+
+impl Flight {
+    /// `viewport_px` is the map width in braille pixels.
+    pub fn new(from: View, to: View, viewport_px: f64) -> Self {
+        let width = |zoom: f64| viewport_px / (TILE_PX * zoom.exp2());
+        let (w0, w1) = (width(from.zoom), width(to.zoom));
+        let dx = (to.x - from.x + 0.5).rem_euclid(1.0) - 0.5;
+        let dy = to.y - from.y;
+        let dist = dx.hypot(dy);
+        let rho2 = RHO * RHO;
+        let (r0, length) = if dist < 1e-12 {
+            (0.0, (w1 / w0).ln() / RHO)
+        } else {
+            let b0 = (w1 * w1 - w0 * w0 + rho2 * rho2 * dist * dist) / (2.0 * w0 * rho2 * dist);
+            let b1 = (w1 * w1 - w0 * w0 - rho2 * rho2 * dist * dist) / (2.0 * w1 * rho2 * dist);
+            // r = ln(√(b²+1) − b) = −asinh(b), written to avoid cancellation for large b.
+            let (r0, r1) = (-b0.asinh(), -b1.asinh());
+            (r0, (r1 - r0) / RHO)
+        };
+        Flight {
+            from,
+            to,
+            dx,
+            dy,
+            dist,
+            w0,
+            r0,
+            length,
+            viewport_px,
+            elapsed: 0.0,
+            duration: (length.abs() * FLIGHT_PACE).clamp(FLIGHT_MIN_SECS, FLIGHT_MAX_SECS),
+        }
+    }
+
+    /// Advance by `dt` seconds. Returns the view at that time and whether the flight is over.
+    pub fn step(&mut self, dt: f64) -> (View, bool) {
+        self.elapsed += dt;
+        let t = self.elapsed / self.duration;
+        if t >= 1.0 {
+            return (self.to, true);
+        }
+        let t = ease_in_out(t);
+        let s = t * self.length;
+        // u: fraction of the pan done, w: viewport width in world units.
+        let (u, w) = if self.dist < 1e-12 {
+            (t, self.w0 * (RHO * s).exp())
+        } else {
+            let (r0, rs) = (self.r0, RHO * s + self.r0);
+            let u = self.w0 / (RHO * RHO * self.dist) * (r0.cosh() * rs.tanh() - r0.sinh());
+            (u, self.w0 * r0.cosh() / rs.cosh())
+        };
+        let zoom = (self.viewport_px / (TILE_PX * w)).log2();
+        let view = View {
+            x: (self.from.x + u * self.dx).rem_euclid(1.0),
+            y: (self.from.y + u * self.dy).clamp(0.0, 1.0),
+            zoom: zoom.clamp(MIN_ZOOM, MAX_VIEW_ZOOM),
+        };
+        (view, false)
+    }
+}
+
+fn ease_in_out(t: f64) -> f64 {
+    if t < 0.5 {
+        4.0 * t * t * t
+    } else {
+        1.0 - (2.0 - 2.0 * t).powi(3) / 2.0
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Category {
     Food,
@@ -615,4 +710,69 @@ fn point_of(f: &Feature) -> Option<&[i32; 2]> {
 fn line_anchor(f: &Feature) -> Option<[i32; 2]> {
     let part = f.geom.iter().max_by_key(|g| g.len())?;
     part.get(part.len() / 2).copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fly(from: View, to: View) -> Vec<View> {
+        let mut flight = Flight::new(from, to, 240.0);
+        let mut views = Vec::new();
+        loop {
+            let (view, done) = flight.step(1.0 / 60.0);
+            views.push(view);
+            if done {
+                return views;
+            }
+        }
+    }
+
+    fn assert_smooth(views: &[View]) {
+        for w in views.windows(2) {
+            assert!((w[1].zoom - w[0].zoom).abs() < 0.5, "zoom jump {:?}", w);
+        }
+    }
+
+    #[test]
+    fn long_flight_zooms_out_and_lands_on_target() {
+        let paris = View::new(48.8566, 2.3522, 17.0);
+        let tokyo = View::new(35.6762, 139.6503, 17.0);
+        let views = fly(paris, tokyo);
+        assert!((views[0].zoom - paris.zoom).abs() < 0.1);
+        assert!((views[0].x - paris.x).abs() < 1e-4);
+        let last = views.last().unwrap();
+        assert_eq!((last.x, last.y, last.zoom), (tokyo.x, tokyo.y, tokyo.zoom));
+        let lowest = views.iter().map(|v| v.zoom).fold(f64::INFINITY, f64::min);
+        assert!(lowest < 5.0, "lowest zoom {lowest}");
+        assert!(views.len() as f64 <= FLIGHT_MAX_SECS * 60.0 + 2.0);
+        assert_smooth(&views);
+    }
+
+    #[test]
+    fn short_flight_stays_close_in() {
+        let a = View::new(48.8530, 2.3499, 17.0);
+        let b = View::new(48.8566, 2.3522, 17.0);
+        let views = fly(a, b);
+        let lowest = views.iter().map(|v| v.zoom).fold(f64::INFINITY, f64::min);
+        assert!(lowest > 13.0, "lowest zoom {lowest}");
+        assert_smooth(&views);
+    }
+
+    #[test]
+    fn crosses_antimeridian_the_short_way() {
+        let views = fly(View::new(0.0, 179.0, 8.0), View::new(0.0, -179.0, 8.0));
+        // Never passes over longitude 0 (x = 0.5).
+        assert!(views.iter().all(|v| (v.x - 0.5).abs() > 0.4));
+    }
+
+    #[test]
+    fn zoom_only_flight() {
+        let from = View::new(48.8566, 2.3522, 2.0);
+        let to = View::new(48.8566, 2.3522, 15.0);
+        let views = fly(from, to);
+        assert!(views.windows(2).all(|w| w[1].zoom >= w[0].zoom - 1e-9));
+        assert_eq!(views.last().unwrap().zoom, 15.0);
+        assert_smooth(&views);
+    }
 }

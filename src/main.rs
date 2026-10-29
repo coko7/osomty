@@ -22,7 +22,7 @@ use ratatui::{DefaultTerminal, Frame};
 
 use crate::canvas::Canvas;
 use crate::input::LineInput;
-use crate::map::{Category, MAX_VIEW_ZOOM, MIN_ZOOM, Marker, Poi, View, to_world};
+use crate::map::{Category, Flight, MAX_VIEW_ZOOM, MIN_ZOOM, Marker, Poi, View, to_world};
 use crate::search::Place;
 use crate::tiles::TileManager;
 use unicode_width::UnicodeWidthStr;
@@ -68,6 +68,7 @@ struct SearchState {
 struct App {
     view: View,
     zoom_anim: Option<ZoomAnim>,
+    flight: Option<Flight>,
     tiles: TileManager,
     filter: Option<Category>,
     show_panel: bool,
@@ -87,6 +88,7 @@ impl App {
         App {
             view: View::new(30.0, 10.0, 1.3),
             zoom_anim: None,
+            flight: None,
             tiles: TileManager::new(6),
             filter: None,
             show_panel: false,
@@ -104,6 +106,7 @@ impl App {
 
     /// Queue a smooth zoom by `delta` around the pixel (`px`,`py`) from the map centre.
     fn zoom_by(&mut self, delta: f64, px: f64, py: f64) {
+        self.flight = None;
         let from = self.zoom_anim.map_or(self.view.zoom, |a| a.target);
         let now = self.view.zoom;
         let target = (from + delta)
@@ -112,8 +115,32 @@ impl App {
         self.zoom_anim = Some(ZoomAnim { target, px, py });
     }
 
-    /// Advance the zoom animation by `dt`. Returns true if the view changed.
-    fn step_zoom(&mut self, dt: Duration) -> bool {
+    fn pan(&mut self, dx: f64, dy: f64) {
+        self.flight = None;
+        self.view.pan_px(dx, dy);
+    }
+
+    /// Fly smoothly to `view`, zooming out to travel if it is far away.
+    fn fly_to(&mut self, view: View) {
+        let viewport_px = (self.map_area.width as f64 * 2.0).max(64.0);
+        self.zoom_anim = None;
+        self.flight = Some(Flight::new(self.view, view, viewport_px));
+    }
+
+    fn animating(&self) -> bool {
+        self.zoom_anim.is_some() || self.flight.is_some()
+    }
+
+    /// Advance running animations by `dt`. Returns true if the view changed.
+    fn step_animations(&mut self, dt: Duration) -> bool {
+        if let Some(flight) = &mut self.flight {
+            let (view, done) = flight.step(dt.as_secs_f64());
+            self.view = view;
+            if done {
+                self.flight = None;
+            }
+            return true;
+        }
         let Some(anim) = self.zoom_anim else {
             return false;
         };
@@ -131,6 +158,7 @@ impl App {
     fn set_view(&mut self, view: View) {
         self.view = view;
         self.zoom_anim = None;
+        self.flight = None;
     }
 
     fn start_search(&mut self) {
@@ -176,7 +204,7 @@ impl App {
         let Some(place) = self.search.results.get(self.search.selected).cloned() else {
             return;
         };
-        self.set_view(View::new(place.lat, place.lon, place.zoom));
+        self.fly_to(View::new(place.lat, place.lon, place.zoom));
         let (x, y) = to_world(place.lat, place.lon);
         let label = place.name.split(',').next().unwrap_or(&place.name).trim();
         self.marker = Some(Marker {
@@ -258,14 +286,11 @@ impl App {
             KeyCode::Home | KeyCode::Char('g') => self.panel.select_first(),
             KeyCode::Enter => {
                 if let Some(poi) = self.selected_poi().cloned() {
-                    self.set_view(View {
+                    self.fly_to(View {
                         x: poi.x,
                         y: poi.y,
-                        zoom: self.view.zoom,
+                        zoom: self.view.zoom.max(17.0),
                     });
-                    if self.view.zoom < 17.0 {
-                        self.zoom_by(17.0 - self.view.zoom, 0.0, 0.0);
-                    }
                     self.marker = Some(Marker {
                         x: poi.x,
                         y: poi.y,
@@ -287,10 +312,10 @@ impl App {
         match key.code {
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Esc => self.marker = None,
-            KeyCode::Left | KeyCode::Char('h') => self.view.pan_px(-step_x, 0.0),
-            KeyCode::Right | KeyCode::Char('l') => self.view.pan_px(step_x, 0.0),
-            KeyCode::Up | KeyCode::Char('k') => self.view.pan_px(0.0, -step_y),
-            KeyCode::Down | KeyCode::Char('j') => self.view.pan_px(0.0, step_y),
+            KeyCode::Left | KeyCode::Char('h') => self.pan(-step_x, 0.0),
+            KeyCode::Right | KeyCode::Char('l') => self.pan(step_x, 0.0),
+            KeyCode::Up | KeyCode::Char('k') => self.pan(0.0, -step_y),
+            KeyCode::Down | KeyCode::Char('j') => self.pan(0.0, step_y),
             KeyCode::Char('+' | '=' | 'a') => self.zoom_by(KEY_ZOOM_STEP, 0.0, 0.0),
             KeyCode::Char('-' | '_' | 'z') => self.zoom_by(-KEY_ZOOM_STEP, 0.0, 0.0),
             KeyCode::Char('/' | 's') => self.focus = Focus::Search,
@@ -334,7 +359,7 @@ impl App {
                 if let Some((c, r)) = self.drag {
                     let dx = (c as f64 - m.column as f64) * 2.0;
                     let dy = (r as f64 - m.row as f64) * 4.0;
-                    self.view.pan_px(dx, dy);
+                    self.pan(dx, dy);
                 }
                 self.drag = Some((m.column, m.row));
             }
@@ -378,13 +403,13 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
     let mut last = Instant::now();
     while !app.quit {
         let now = Instant::now();
-        dirty |= app.step_zoom(now - last);
+        dirty |= app.step_animations(now - last);
         last = now;
         if dirty {
             terminal.draw(|f| ui(f, app))?;
             dirty = false;
         }
-        let timeout = if app.zoom_anim.is_some() {
+        let timeout = if app.animating() {
             FRAME
         } else {
             Duration::from_millis(50)

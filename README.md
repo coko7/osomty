@@ -35,7 +35,7 @@ Inspired by [mapscii](https://github.com/rastapasta/mapscii) (`telnet mapscii.me
 - Street names from zoom 15.5, house numbers from zoom 18
 - Filter points of interest by category
 - Nearby places panel listing named places on screen, nearest first
-- Place search with [Nominatim](https://nominatim.org), or jump to `lat, lon` coordinates
+- Place search with [Nominatim](https://nominatim.org), or jump to `lat, lon` coordinates. The map flies to the result, zooming out to travel and back in to arrive
 - Tiles download in the background, and a lower-zoom version is shown until the detailed one arrives
 - Downloaded tiles are cached on disk, so areas you've already seen work offline
 
