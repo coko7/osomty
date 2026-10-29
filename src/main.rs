@@ -38,6 +38,11 @@ const MAX_PENDING_ZOOM: f64 = 1.5;
 const ZOOM_EASE: f64 = 12.0;
 const FRAME: Duration = Duration::from_millis(16);
 
+/// Start-up view, also used by `r` (reset).
+fn world_view() -> View {
+    View::new(30.0, 10.0, 1.3)
+}
+
 /// Animated zoom towards `target`, keeping the pixel at (`px`,`py`) from the centre fixed.
 #[derive(Clone, Copy)]
 struct ZoomAnim {
@@ -86,7 +91,7 @@ struct App {
 impl App {
     fn new() -> Self {
         App {
-            view: View::new(30.0, 10.0, 1.3),
+            view: world_view(),
             zoom_anim: None,
             flight: None,
             tiles: TileManager::new(6),
@@ -153,12 +158,6 @@ impl App {
         };
         self.view.zoom_around(delta, anim.px, anim.py);
         true
-    }
-
-    fn set_view(&mut self, view: View) {
-        self.view = view;
-        self.zoom_anim = None;
-        self.flight = None;
     }
 
     fn start_search(&mut self) {
@@ -330,7 +329,7 @@ impl App {
             KeyCode::Char('f') => self.cycle_filter(true),
             KeyCode::Char('F') => self.cycle_filter(false),
             KeyCode::Char('?') => self.show_help = true,
-            KeyCode::Char('r') => self.set_view(View::new(30.0, 10.0, 1.3)),
+            KeyCode::Char('r') => self.fly_to(world_view()),
             _ => {}
         }
     }
